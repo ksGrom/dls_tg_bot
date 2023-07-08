@@ -3,6 +3,7 @@ import asyncio
 import subprocess
 import time
 from dotenv import load_dotenv
+from nn_style_transfer import get_vgg19
 
 COMMANDS = {
     # 'start': start,
@@ -10,7 +11,7 @@ COMMANDS = {
 }
 
 load_dotenv()
-TG_TOKEN = os.getenv("BOT_TOKEN")
+TG_TOKEN = os.getenv("TG_BOT_TOKEN")
 
 
 async def run_fastapi():
@@ -23,6 +24,7 @@ async def main():
 
 
 if __name__ == '__main__':
+    get_vgg19()  # Скачает веса, если не скачаны
     p = subprocess.Popen('uvicorn main:app --port 8000 --host 0.0.0.0')
     i = 0
     while True:
