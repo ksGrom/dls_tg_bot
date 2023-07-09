@@ -14,6 +14,7 @@ TG_TOKEN = os.getenv("TG_BOT_TOKEN")
 TG_API_URL = ans.TG_API_URL
 CHATS_ORIG_IMAGES = ans.CHATS_ORIG_IMAGES
 IN_PROCESS_CHATS = ans.IN_PROCESS_CHATS
+TRAINING_INFO_LAST_ID = ans.TRAINING_INFO_LAST_ID
 
 ANSWERS = {
     'start': lambda x: ans.start(x, token=TG_TOKEN),
@@ -29,6 +30,8 @@ ANSWERS = {
         ans.docs_not_allowed(chat_id, token=TG_TOKEN),
     ('send_image', ): lambda chat_id, file_path:
         ans.send_image(chat_id, file_path, token=TG_TOKEN),
+    ('send_training_info', ): lambda chat_id, info:
+        ans.send_training_info(chat_id, info, token=TG_TOKEN),
     None: lambda x: ans.command_not_exist(x, token=TG_TOKEN),
 }
 
@@ -97,19 +100,24 @@ def get_image(image_info):
 
 def transfer_style(chat_id):
     IN_PROCESS_CHATS.append(chat_id)
+    ANSWERS[('busy', )](chat_id)
     while IN_PROCESS_CHATS[0] != chat_id:
         time.sleep(1)
     style_img_path = get_image(CHATS_ORIG_IMAGES[chat_id][0])
     content_img_path = get_image(CHATS_ORIG_IMAGES[chat_id][1])
     output_file_path = f"./tmp/{time.time()}.jpg"
+    log_func = lambda info: ANSWERS[('send_training_info', )](chat_id, info)
     nn_process(
         content_img_path=content_img_path,
         style_img_path=style_img_path,
         output_file_path=output_file_path,
+        log_func=log_func
     )
     ANSWERS[('send_image', )](chat_id, output_file_path)
-    for path in [style_img_path, content_img_path, output_file_path]:
-        os.remove(path)
+    # for path in [style_img_path, content_img_path, output_file_path]:
+    #     os.remove(path)
+    del CHATS_ORIG_IMAGES[chat_id]
+    TRAINING_INFO_LAST_ID[0] = None
     IN_PROCESS_CHATS.popleft()
 
 

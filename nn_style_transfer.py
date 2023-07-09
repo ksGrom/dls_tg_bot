@@ -46,7 +46,7 @@ def imshow(tensor, filename):
     image = image.squeeze(0)  # remove the fake batch dimension
     image = unloader(image)
 
-    fig = plt.figure(frameon=False)
+    fig = plt.figure(frameon=False, figsize=(512/96, 512/96), dpi=96)
     ax = plt.Axes(fig, [0., 0., 1., 1.])
     ax.set_axis_off()
     fig.add_axes(ax)
@@ -236,11 +236,11 @@ def run_style_transfer(cnn, normalization_mean, normalization_std,
             loss.backward()
 
             run[0] += 1
-            if run[0] % 50 == 0:
-                log("run {}:".format(run))
-                log('Style Loss : {:4f} Content Loss: {:4f}'.format(
-                    style_score.item(), content_score.item()))
-                log()
+            if run[0] % 10 == 0:
+                log(f"Итерация {run[0]} / {num_steps+20}\n " +
+                    'Style Loss : {:4f} Content Loss: {:4f}'
+                    .format(style_score.item(), content_score.item())
+                )
 
             return style_score + content_score
 
@@ -253,12 +253,15 @@ def run_style_transfer(cnn, normalization_mean, normalization_std,
     return input_img
 
 
-def style_transfer(content_img_path, style_img_path, output_file_path):
+def style_transfer(content_img_path, style_img_path,
+                   output_file_path, log_func=print):
     style_img = image_loader(style_img_path)
     content_img = image_loader(content_img_path)
     assert style_img.size() == content_img.size(), \
         "style and content images must be the same size"
     input_img = content_img.clone()
-    output = run_style_transfer(cnn, cnn_normalization_mean, cnn_normalization_std,
-                                content_img, style_img, input_img, num_steps=1)
+    output = run_style_transfer(
+        cnn, cnn_normalization_mean, cnn_normalization_std,
+        content_img, style_img, input_img, num_steps=500, log=log_func
+    )
     imshow(output, output_file_path)

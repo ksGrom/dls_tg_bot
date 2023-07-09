@@ -4,6 +4,7 @@ from collections import deque
 TG_API_URL = "https://api.telegram.org"
 CHATS_ORIG_IMAGES = {}
 IN_PROCESS_CHATS = deque()
+TRAINING_INFO_LAST_ID = [None]
 
 
 def __send_message(chat_id, text, token):
@@ -43,7 +44,7 @@ def get_dq_pos(x, dq):
 def busy(chat_id, token):
     pos = get_dq_pos(chat_id, IN_PROCESS_CHATS)
     if pos == 0:
-        text = "Ваши изображения обрабатываются. Дождитесь завершения процесса."
+        text = "Ваше изображение генерируется. Дождитесь завершения процесса."
     else:
         text = f"Ваш запрос в очереди; число запросов перед ним: {pos}. " \
                f"Результат будет отправлен в этот чат после завершения процесса."
@@ -65,3 +66,16 @@ def send_image(chat_id, file_path, token):
         )
         if r.json().get('ok') is True:
             break
+
+
+def send_training_info(chat_id, info, token):
+    if TRAINING_INFO_LAST_ID[0] is not None:
+        requests.post(
+            f"{TG_API_URL}/bot{token}/deleteMessage?chat_id={chat_id}"
+            f"&message_id={TRAINING_INFO_LAST_ID[0]}"
+        )
+    r = requests.post(
+        f"{TG_API_URL}/bot{token}/sendmessage?chat_id={chat_id}"
+        f"&text={info}&disable_notification=1"
+    )
+    TRAINING_INFO_LAST_ID[0] = r.json()['result']['message_id']
