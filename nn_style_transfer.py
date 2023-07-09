@@ -9,11 +9,13 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 from PIL import Image
+import matplotlib
 import matplotlib.pyplot as plt
 
 import torchvision.transforms as transforms
 import torchvision.models as models
 
+matplotlib.use('agg')
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.set_default_device(device)
 
@@ -28,6 +30,7 @@ loader = transforms.Compose([
 
 def image_loader(image_name):
     image = Image.open(image_name)
+    image = image.resize((512, 512))
     # fake batch dimension required to fit network's input dimensions
     image = loader(image).unsqueeze(0)
     return image.to(device, torch.float)
@@ -38,14 +41,18 @@ unloader = transforms.ToPILImage()  # reconvert into PIL image
 plt.ion()
 
 
-def imshow(tensor, title=None):
+def imshow(tensor, filename):
     image = tensor.cpu().clone()  # we clone the tensor to not do changes on it
     image = image.squeeze(0)  # remove the fake batch dimension
     image = unloader(image)
-    plt.imshow(image)
-    if title is not None:
-        plt.title(title)
-    plt.pause(0.001)  # pause a bit so that plots are updated
+
+    fig = plt.figure(frameon=False)
+    ax = plt.Axes(fig, [0., 0., 1., 1.])
+    ax.set_axis_off()
+    fig.add_axes(ax)
+
+    ax.imshow(image, aspect='auto')
+    fig.savefig(filename)
 
 
 class ContentLoss(nn.Module):
@@ -103,8 +110,8 @@ class Normalization(nn.Module):
         # .view the mean and std to make them [C x 1 x 1] so that they can
         # directly work with image Tensor of shape [B x C x H x W].
         # B is batch size. C is number of channels. H is height and W is width.
-        self.mean = torch.tensor(mean).view(-1, 1, 1)
-        self.std = torch.tensor(std).view(-1, 1, 1)
+        self.mean = mean.clone().detach().view(-1, 1, 1)
+        self.std = std.clone().detach().view(-1, 1, 1)
 
     def forward(self, img):
         # normalize ``img``
@@ -186,9 +193,9 @@ def get_input_optimizer(input_img):
 
 def run_style_transfer(cnn, normalization_mean, normalization_std,
                        content_img, style_img, input_img, num_steps=300,
-                       style_weight=1000000, content_weight=1):
+                       style_weight=1000000, content_weight=1, log=print):
     """Run the style transfer."""
-    print('Building the style transfer model..')
+    log('Building the style transfer model..')
     model, style_losses, content_losses = get_style_model_and_losses(
         cnn, normalization_mean, normalization_std, style_img, content_img
     )
@@ -203,7 +210,7 @@ def run_style_transfer(cnn, normalization_mean, normalization_std,
 
     optimizer = get_input_optimizer(input_img)
 
-    print('Optimizing..')
+    log('Optimizing..')
     run = [0]
     while run[0] <= num_steps:
 
@@ -230,10 +237,10 @@ def run_style_transfer(cnn, normalization_mean, normalization_std,
 
             run[0] += 1
             if run[0] % 50 == 0:
-                print("run {}:".format(run))
-                print('Style Loss : {:4f} Content Loss: {:4f}'.format(
+                log("run {}:".format(run))
+                log('Style Loss : {:4f} Content Loss: {:4f}'.format(
                     style_score.item(), content_score.item()))
-                print()
+                log()
 
             return style_score + content_score
 
@@ -246,22 +253,12 @@ def run_style_transfer(cnn, normalization_mean, normalization_std,
     return input_img
 
 
-# ######################################################################
-# # Finally, we can run the algorithm.
-# #
-#
-# style_img = image_loader("./data/images/neural-style/picasso.jpg")
-# content_img = image_loader("./data/images/neural-style/dancing.jpg")
-#
-# assert style_img.size() == content_img.size(), \
-#     "we need to import style and content images of the same size"
-# input_img = content_img.clone()
-# output = run_style_transfer(cnn, cnn_normalization_mean, cnn_normalization_std,
-#                             content_img, style_img, input_img)
-#
-# plt.figure()
-# imshow(output, title='Output Image')
-#
-# # sphinx_gallery_thumbnail_number = 4
-# plt.ioff()
-# plt.show()
+def style_transfer(content_img_path, style_img_path, output_file_path):
+    style_img = image_loader(style_img_path)
+    content_img = image_loader(content_img_path)
+    assert style_img.size() == content_img.size(), \
+        "style and content images must be the same size"
+    input_img = content_img.clone()
+    output = run_style_transfer(cnn, cnn_normalization_mean, cnn_normalization_std,
+                                content_img, style_img, input_img, num_steps=1)
+    imshow(output, output_file_path)
